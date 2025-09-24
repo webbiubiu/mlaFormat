@@ -59,7 +59,17 @@ export default function Home() {
       <header className="border-b">
         <div className="container mx-auto px-4 py-6">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-foreground mb-2">
+            <h1 className="text-4xl font-bold text-foreground mb-2 flex items-center justify-center gap-3">
+              <svg width="48" height="48" viewBox="0 0 32 32" className="text-green-600">
+                <circle cx="16" cy="16" r="15" fill="currentColor"/>
+                <rect x="8" y="6" width="14" height="18" rx="1" fill="white"/>
+                <path d="M18 6V10H22L18 6Z" fill="#e5e7eb"/>
+                <rect x="10" y="12" width="10" height="1.5" fill="#6b7280"/>
+                <rect x="10" y="15" width="10" height="1.5" fill="#6b7280"/>
+                <rect x="10" y="18" width="8" height="1.5" fill="#6b7280"/>
+                <rect x="10" y="21" width="9" height="1.5" fill="#6b7280"/>
+                <path d="M5 16L8 19L14 13" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round"/>
+              </svg>
               MLA Format Checker
             </h1>
             <p className="text-lg text-muted-foreground">

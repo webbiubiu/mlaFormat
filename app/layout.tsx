@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MLA Format Checker",
   description: "一个全前端MLA格式检测网站，用户上传DOCX/PDF文档，自动检测是否符合MLA标准",
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32' }
+    ],
+    apple: { url: '/icon-large.svg', type: 'image/svg+xml' }
+  }
 };
 
 export default function RootLayout({

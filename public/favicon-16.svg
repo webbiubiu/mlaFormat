@@ -1,0 +1,18 @@
+<!-- Simplified favicon for conversion to ICO -->
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <circle cx="8" cy="8" r="8" fill="#10b981"/>
+  
+  <!-- Document -->
+  <rect x="4" y="3" width="7" height="9" rx="0.5" fill="white"/>
+  <path d="M9 3V5H11L9 3Z" fill="#e5e7eb"/>
+  
+  <!-- Text lines -->
+  <rect x="5" y="6" width="4" height="0.5" fill="#6b7280"/>
+  <rect x="5" y="7" width="4" height="0.5" fill="#6b7280"/>
+  <rect x="5" y="8" width="3" height="0.5" fill="#6b7280"/>
+  <rect x="5" y="9" width="3.5" height="0.5" fill="#6b7280"/>
+  
+  <!-- Check mark -->
+  <path d="M2 8L3 9L5 7" stroke="white" stroke-width="1" fill="none" stroke-linecap="round"/>
+</svg>

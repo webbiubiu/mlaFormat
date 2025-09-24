@@ -1,0 +1,21 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Document background -->
+  <rect x="12" y="8" width="36" height="48" rx="2" fill="white" stroke="#d1d5db" stroke-width="2"/>
+  
+  <!-- Document fold corner -->
+  <path d="M40 8V16H48L40 8Z" fill="#f9fafb" stroke="#d1d5db" stroke-width="2"/>
+  
+  <!-- Text lines -->
+  <rect x="16" y="20" width="24" height="3" rx="1.5" fill="#9ca3af"/>
+  <rect x="16" y="26" width="28" height="3" rx="1.5" fill="#9ca3af"/>
+  <rect x="16" y="32" width="20" height="3" rx="1.5" fill="#9ca3af"/>
+  <rect x="16" y="38" width="26" height="3" rx="1.5" fill="#9ca3af"/>
+  <rect x="16" y="44" width="22" height="3" rx="1.5" fill="#9ca3af"/>
+  
+  <!-- Check mark overlay -->
+  <circle cx="40" cy="40" r="14" fill="#10b981" stroke="white" stroke-width="3"/>
+  <path d="M34 40L38 44L46 36" stroke="white" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- MLA text -->
+  <text x="32" y="14" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#374151" text-anchor="middle">MLA</text>
+</svg>
