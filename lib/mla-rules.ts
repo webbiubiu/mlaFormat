@@ -167,24 +167,39 @@ export class MLARulesEngine {
     // Get document default font from styles
     const defaultStyle = styles.find(s => s.type === 'paragraph' && s.name === 'Normal') || 
                         styles.find(s => s.type === 'paragraph') ||
-                        { fontFamily: undefined, fontSize: undefined };
+                        { fontFamily: undefined, fontSize: 12 }; // Default to 12pt if not found
+
+    // Assume default font size is 12pt if not explicitly set
+    const defaultFontSize = defaultStyle.fontSize || 12;
+    
+    let hasExplicitFontInfo = false;
+    let totalFontChecks = 0;
 
     paragraphs.forEach((paragraph, index) => {
       paragraph.runs.forEach(run => {
-        // Check font family - only check if font family is explicitly defined
+        totalFontChecks++;
+        
+        // Check font family
         const effectiveFontFamily = run.formatting.fontFamily || defaultStyle.fontFamily;
         
-        if (effectiveFontFamily && !this.isTimesNewRomanFont(effectiveFontFamily)) {
-          nonTimesNewRomanCount++;
-          if (!affectedElements.includes(`Paragraph ${index + 1}`)) {
-            affectedElements.push(`Paragraph ${index + 1}`);
+        if (effectiveFontFamily) {
+          hasExplicitFontInfo = true;
+          if (!this.isTimesNewRomanFont(effectiveFontFamily)) {
+            nonTimesNewRomanCount++;
+            if (!affectedElements.includes(`Paragraph ${index + 1}`)) {
+              affectedElements.push(`Paragraph ${index + 1}`);
+            }
           }
         }
         
-        // Check font size - only check if font size is explicitly defined
-        const effectiveFontSize = run.formatting.fontSize || defaultStyle.fontSize;
+        // Check font size - use effective font size (explicit or default)
+        const effectiveFontSize = run.formatting.fontSize || defaultFontSize;
         
-        if (effectiveFontSize && effectiveFontSize !== 12) {
+        if (run.formatting.fontSize !== undefined) {
+          hasExplicitFontInfo = true;
+        }
+        
+        if (Math.abs(effectiveFontSize - 12) > 0.1) { // Allow small rounding differences
           wrongFontSizeCount++;
           if (!affectedElements.includes(`Paragraph ${index + 1}`)) {
             affectedElements.push(`Paragraph ${index + 1}`);
@@ -194,22 +209,18 @@ export class MLARulesEngine {
     });
 
     // Font family result
-    const hasUnknownFonts = paragraphs.some(p => 
-      p.runs.some(r => r.formatting.fontFamily || defaultStyle.fontFamily)
-    );
-    
-    const fontFamilyPassed = nonTimesNewRomanCount === 0 && hasUnknownFonts;
+    const fontFamilyPassed = nonTimesNewRomanCount === 0;
     results.push({
       rule: fontFamilyRule,
       passed: fontFamilyPassed,
-      details: !hasUnknownFonts 
+      details: !hasExplicitFontInfo && defaultStyle.fontFamily === undefined
         ? 'No font family information found - unable to verify Times New Roman requirement'
         : fontFamilyPassed 
-          ? 'All text uses Times New Roman font family'
+          ? 'All text uses Times New Roman font family (or default is acceptable)'
           : `Found ${nonTimesNewRomanCount} instances of non-Times New Roman fonts`,
-      suggestions: !hasUnknownFonts ? [
+      suggestions: !hasExplicitFontInfo && defaultStyle.fontFamily === undefined ? [
         'Ensure document specifies Times New Roman as font family',
-        'Check if font information is embedded in the document'
+        'Set Times New Roman as the default font in your document'
       ] : fontFamilyPassed ? [] : [
         'Change all fonts to Times New Roman',
         'Use Format > Font to set Times New Roman as default'
@@ -217,28 +228,19 @@ export class MLARulesEngine {
       affectedElements: fontFamilyPassed ? [] : affectedElements
     });
 
-    // Font size result
-    const hasUnknownSizes = paragraphs.some(p => 
-      p.runs.some(r => r.formatting.fontSize || defaultStyle.fontSize)
-    );
-    
-    const fontSizePassed = wrongFontSizeCount === 0 && hasUnknownSizes;
+    // Font size result - assume default 12pt is correct if no explicit sizes found
+    const fontSizePassed = wrongFontSizeCount === 0;
     results.push({
       rule: fontSizeRule,
       passed: fontSizePassed,
-      details: !hasUnknownSizes
-        ? 'No font size information found - unable to verify 12pt requirement'
-        : fontSizePassed 
-          ? 'All text uses 12-point font size'
-          : `Found ${wrongFontSizeCount} instances of incorrect font sizes`,
-      suggestions: !hasUnknownSizes ? [
-        'Ensure document specifies 12pt font size',
-        'Check if font size information is embedded in the document'
-      ] : fontSizePassed ? [] : [
+      details: fontSizePassed 
+        ? `All text uses 12-point font size (checked ${totalFontChecks} text runs)`
+        : `Found ${wrongFontSizeCount} instances of incorrect font sizes (expected 12pt)`,
+      suggestions: fontSizePassed ? [] : [
         'Set all text to 12-point font size',
-        'Use Format > Font to set 12pt as default'
+        'Use Format > Font to set 12pt as default font size'
       ],
-      affectedElements: fontSizePassed ? [] : affectedElements
+      affectedElements: fontSizePassed ? [] : affectedElements.slice() // Copy array to avoid shared reference
     });
 
     return results;
