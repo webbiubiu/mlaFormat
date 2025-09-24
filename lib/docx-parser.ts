@@ -1,16 +1,19 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type XMLNode = any;
+
 import JSZip from 'jszip';
 import { parseString as parseXML } from 'xml2js';
 
 export interface DocxParseResult {
   content: string;
-  styles: any;
-  settings: any;
-  wordXML: any;
-  numbering?: any;
-  footnotes?: any;
-  headers?: any;
-  footers?: any;
-  relationships?: any;
+  styles: XMLNode | null;
+  settings: XMLNode | null;
+  wordXML: XMLNode;
+  numbering?: XMLNode | null;
+  footnotes?: XMLNode | null;
+  headers?: XMLNode | null;
+  footers?: XMLNode | null;
+  relationships?: XMLNode | null;
 }
 
 export interface DocxStyle {
@@ -76,7 +79,7 @@ export interface DocxPageSettings {
 }
 
 export class DocxParser {
-  private static parseXmlAsync(xmlContent: string): Promise<any> {
+  private static parseXmlAsync(xmlContent: string): Promise<XMLNode> {
     return new Promise((resolve, reject) => {
       parseXML(xmlContent, { mergeAttrs: true, explicitArray: false }, (err, result) => {
         if (err) reject(err);
@@ -138,7 +141,7 @@ export class DocxParser {
     }
   }
 
-  static extractTextContent(wordXML: any): string {
+  static extractTextContent(wordXML: XMLNode): string {
     if (!wordXML?.document?.body?.p) {
       return '';
     }
@@ -148,12 +151,12 @@ export class DocxParser {
       : [wordXML.document.body.p];
 
     return paragraphs
-      .map((paragraph: any) => this.extractParagraphText(paragraph))
+      .map((paragraph: XMLNode) => this.extractParagraphText(paragraph))
       .filter((text: string) => text.trim().length > 0)
       .join('\n\n');
   }
 
-  static extractParagraphText(paragraph: any): string {
+  static extractParagraphText(paragraph: XMLNode): string {
     if (!paragraph?.r) {
       return '';
     }
@@ -161,7 +164,7 @@ export class DocxParser {
     const runs = Array.isArray(paragraph.r) ? paragraph.r : [paragraph.r];
     
     return runs
-      .map((run: any) => {
+      .map((run: XMLNode) => {
         if (run.t) {
           return Array.isArray(run.t) ? run.t.join('') : run.t;
         }
@@ -170,7 +173,7 @@ export class DocxParser {
       .join('');
   }
 
-  static extractParagraphs(wordXML: any): DocxParagraph[] {
+  static extractParagraphs(wordXML: XMLNode): DocxParagraph[] {
     if (!wordXML?.document?.body?.p) {
       return [];
     }
@@ -179,10 +182,10 @@ export class DocxParser {
       ? wordXML.document.body.p 
       : [wordXML.document.body.p];
 
-    return paragraphs.map((p: any) => this.parseParagraph(p));
+    return paragraphs.map((p: XMLNode) => this.parseParagraph(p));
   }
 
-  static parseParagraph(paragraph: any): DocxParagraph {
+  static parseParagraph(paragraph: XMLNode): DocxParagraph {
     const text = this.extractParagraphText(paragraph);
     const runs = this.parseRuns(paragraph);
     
@@ -218,14 +221,14 @@ export class DocxParser {
     };
   }
 
-  static parseRuns(paragraph: any): DocxRun[] {
+  static parseRuns(paragraph: XMLNode): DocxRun[] {
     if (!paragraph?.r) {
       return [];
     }
 
     const runs = Array.isArray(paragraph.r) ? paragraph.r : [paragraph.r];
     
-    return runs.map((run: any) => {
+    return runs.map((run: XMLNode) => {
       const text = run.t ? (Array.isArray(run.t) ? run.t.join('') : run.t) : '';
       
       // Extract run properties
@@ -244,7 +247,7 @@ export class DocxParser {
     });
   }
 
-  static extractStyles(stylesXML: any): DocxStyle[] {
+  static extractStyles(stylesXML: XMLNode | null): DocxStyle[] {
     if (!stylesXML?.styles?.style) {
       return [];
     }
@@ -253,10 +256,10 @@ export class DocxParser {
       ? stylesXML.styles.style 
       : [stylesXML.styles.style];
 
-    return styles.map((style: any) => this.parseStyle(style));
+    return styles.map((style: XMLNode) => this.parseStyle(style));
   }
 
-  static parseStyle(style: any): DocxStyle {
+  static parseStyle(style: XMLNode): DocxStyle {
     const name = style.name?.val || style.styleId;
     const type = style.type || 'paragraph';
     
@@ -282,13 +285,13 @@ export class DocxParser {
     };
   }
 
-  static extractPageSettings(settingsXML: any): DocxPageSettings | null {
+  static extractPageSettings(settingsXML: XMLNode | null): DocxPageSettings | null {
     if (!settingsXML?.settings) {
       return null;
     }
 
     // Default page settings (Letter size, 1 inch margins)
-    let pageSettings: DocxPageSettings = {
+    const pageSettings: DocxPageSettings = {
       margins: {
         top: 1440,    // 1 inch in twips (1440 twips = 1 inch)
         bottom: 1440,

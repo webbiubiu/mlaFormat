@@ -1,4 +1,12 @@
-// Report generator for MLA analysis results
+export interface MLAReportResult {
+  ruleId: string;
+  message: string;
+  severity: 'error' | 'warning';
+  line?: number;
+  column?: number;
+  fix?: string;
+}
+
 export interface MLAReport {
   overallScore: number;
   summary: {
@@ -7,7 +15,7 @@ export interface MLAReport {
     warnings: number;
     errors: number;
   };
-  results: any[];
+  results: MLAReportResult[];
 }
 
 export class ReportGenerator {
