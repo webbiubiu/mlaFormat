@@ -110,6 +110,43 @@ export class MLARulesEngine {
       description: 'Avoid excessive bold, italic, or underline formatting',
       severity: 'warning',
       category: 'formatting'
+    },
+    
+    // Missing MLA Requirements
+    {
+      id: 'heading-format',
+      name: 'MLA Heading Format',
+      description: 'First page should have proper MLA heading (name, instructor, course, date)',
+      severity: 'error',
+      category: 'structure'
+    },
+    {
+      id: 'paper-size',
+      name: 'Paper Size',
+      description: 'Document should be formatted for standard 8.5" x 11" paper',
+      severity: 'warning',
+      category: 'page-setup'
+    },
+    {
+      id: 'hanging-indent-works-cited',
+      name: 'Works Cited Hanging Indent',
+      description: 'Works Cited entries should have hanging indent (0.5 inch)',
+      severity: 'error',
+      category: 'structure'
+    },
+    {
+      id: 'in-text-citations',
+      name: 'In-Text Citations',
+      description: 'Document should contain proper MLA in-text citations',
+      severity: 'warning',
+      category: 'citations'
+    },
+    {
+      id: 'works-cited-alphabetical',
+      name: 'Works Cited Alphabetical Order',
+      description: 'Works Cited entries should be in alphabetical order',
+      severity: 'error',
+      category: 'structure'
     }
   ];
 
@@ -128,9 +165,13 @@ export class MLARulesEngine {
     results.push(...this.checkFirstLineIndent(paragraphs));
     results.push(...this.checkParagraphAlignment(paragraphs));
     results.push(...this.checkHeaderFormat(parseResult.headers));
+    results.push(...this.checkMLAHeadingFormat(paragraphs));
+    results.push(...this.checkPaperSize(pageSettings));
     results.push(...this.checkTitleFormatting(paragraphs));
     results.push(...this.checkExcessiveFormatting(paragraphs));
     results.push(...this.checkWorksCited(paragraphs));
+    results.push(...this.checkWorksCitedFormatting(paragraphs));
+    results.push(...this.checkInTextCitations(paragraphs));
 
     // Calculate scores
     const totalRules = results.length;
@@ -523,6 +564,264 @@ export class MLARulesEngine {
           'Example: "Smith 1" aligned to the right margin'
         ],
         affectedElements: ['Document header']
+      }];
+    }
+  }
+
+  private static checkMLAHeadingFormat(paragraphs: DocxParagraph[]): MLACheckResult[] {
+    const rule = this.MLA_RULES.find(r => r.id === 'heading-format')!;
+    
+    // Look for MLA heading in first few paragraphs (name, instructor, course, date)
+    const firstFewParagraphs = paragraphs.slice(0, 8).filter(p => p.text.trim().length > 0);
+    
+    if (firstFewParagraphs.length < 4) {
+      return [{
+        rule,
+        status: 'failed',
+        details: 'MLA heading format not found - document should start with name, instructor, course, and date on separate lines',
+        suggestions: [
+          'Add MLA heading at the beginning of your document',
+          'Format: Student Name (line 1), Instructor Name (line 2), Course (line 3), Date (line 4)',
+          'All heading lines should be left-aligned and double-spaced'
+        ],
+        affectedElements: ['Document beginning']
+      }];
+    }
+
+    // Check for typical MLA heading pattern
+    const headingText = firstFewParagraphs.slice(0, 4).map(p => p.text.trim());
+    
+    // Check if first lines contain name-like patterns
+    const hasNamePattern = headingText[0] && /^[A-Z][a-z]+ [A-Z][a-z]+/.test(headingText[0]);
+    const hasInstructorPattern = headingText[1] && /^(Dr\.|Mr\.|Ms\.|Mrs\.|Professor)\s+[A-Z]/.test(headingText[1]);
+    const hasDatePattern = headingText.some(text => /\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2} \w+ \d{4}|\w+ \d{1,2}, \d{4}/.test(text));
+    
+    // Check alignment (should be left-aligned)
+    const hasCorrectAlignment = firstFewParagraphs.slice(0, 4).every(p => 
+      !p.alignment || p.alignment === 'left' || p.alignment === 'start'
+    );
+
+    const score = (hasNamePattern ? 1 : 0) + (hasInstructorPattern ? 1 : 0) + (hasDatePattern ? 1 : 0) + (hasCorrectAlignment ? 1 : 0);
+
+    if (score >= 3) {
+      return [{
+        rule,
+        status: 'passed',
+        details: 'Document contains proper MLA heading format',
+        suggestions: []
+      }];
+    } else {
+      const issues = [];
+      if (!hasNamePattern) issues.push('Student name not found or improperly formatted');
+      if (!hasInstructorPattern) issues.push('Instructor name not found (should include title like "Dr." or "Professor")');
+      if (!hasDatePattern) issues.push('Date not found or improperly formatted');
+      if (!hasCorrectAlignment) issues.push('Heading should be left-aligned');
+
+      return [{
+        rule,
+        status: 'failed',
+        details: `MLA heading issues: ${issues.join('; ')}`,
+        suggestions: [
+          'Format heading as: Student Name, Instructor Name (with title), Course Name, Date',
+          'Each item should be on a separate line, left-aligned',
+          'Example: John Smith, Dr. Johnson, English 101, 15 March 2024'
+        ],
+        affectedElements: firstFewParagraphs.slice(0, 4).map((_, i) => `Paragraph ${i + 1}`)
+      }];
+    }
+  }
+
+  private static checkPaperSize(pageSettings: DocxPageSettings | null): MLACheckResult[] {
+    const rule = this.MLA_RULES.find(r => r.id === 'paper-size')!;
+    
+    if (!pageSettings) {
+      return [{
+        rule,
+        status: 'unable_to_verify',
+        details: 'Could not determine paper size settings from document',
+        suggestions: [
+          'Set paper size to 8.5" x 11" (Letter size)',
+          'Check Page Layout > Size > Letter'
+        ]
+      }];
+    }
+
+    // Check for standard Letter size (8.5" x 11") in twips
+    // 8.5" = 12240 twips, 11" = 15840 twips
+    const letterWidth = 12240;
+    const letterHeight = 15840;
+    const tolerance = 144; // 0.1 inch tolerance
+
+    const isCorrectSize = 
+      Math.abs(pageSettings.pageSize.width - letterWidth) <= tolerance &&
+      Math.abs(pageSettings.pageSize.height - letterHeight) <= tolerance;
+
+    if (isCorrectSize) {
+      return [{
+        rule,
+        status: 'passed',
+        details: 'Document is formatted for standard 8.5" x 11" paper size',
+        suggestions: []
+      }];
+    } else {
+      const actualWidth = DocxParser.twipsToInches(pageSettings.pageSize.width);
+      const actualHeight = DocxParser.twipsToInches(pageSettings.pageSize.height);
+      
+      return [{
+        rule,
+        status: 'failed',
+        details: `Paper size is ${actualWidth.toFixed(1)}" x ${actualHeight.toFixed(1)}" instead of standard 8.5" x 11"`,
+        suggestions: [
+          'Change paper size to Letter (8.5" x 11")',
+          'Use Page Layout > Size > Letter',
+          'Ensure printer settings match document size'
+        ]
+      }];
+    }
+  }
+
+  private static checkWorksCitedFormatting(paragraphs: DocxParagraph[]): MLACheckResult[] {
+    const rule = this.MLA_RULES.find(r => r.id === 'hanging-indent-works-cited')!;
+    
+    // Find Works Cited section
+    const worksCitedStart = paragraphs.findIndex(p => 
+      p.text.toLowerCase().includes('works cited') ||
+      p.text.toLowerCase().includes('bibliography')
+    );
+
+    if (worksCitedStart === -1) {
+      return [{
+        rule,
+        status: 'unable_to_verify',
+        details: 'No Works Cited section found - unable to verify hanging indent formatting',
+        suggestions: [
+          'Add a Works Cited page to your document',
+          'Format Works Cited entries with hanging indent (0.5 inch)'
+        ]
+      }];
+    }
+
+    // Check paragraphs after Works Cited title for hanging indent
+    const citationParagraphs = paragraphs.slice(worksCitedStart + 1)
+      .filter(p => p.text.trim().length > 0);
+
+    if (citationParagraphs.length === 0) {
+      return [{
+        rule,
+        status: 'failed',
+        details: 'Works Cited page found but contains no citations',
+        suggestions: [
+          'Add citations to your Works Cited page',
+          'Format each citation with hanging indent (0.5 inch)'
+        ],
+        affectedElements: [`Paragraph ${worksCitedStart + 1}`]
+      }];
+    }
+
+    // Check for hanging indent (0.5 inch = 720 twips)
+    const hangingIndent = 720;
+    const tolerance = 72;
+    
+    const correctlyFormattedCount = citationParagraphs.filter(p => 
+      p.indentation?.hanging && 
+      Math.abs(p.indentation.hanging - hangingIndent) <= tolerance
+    ).length;
+
+    const hasCorrectFormatting = correctlyFormattedCount > 0;
+    const allHaveCorrectFormatting = correctlyFormattedCount === citationParagraphs.length;
+
+    if (allHaveCorrectFormatting) {
+      return [{
+        rule,
+        status: 'passed',
+        details: `All ${citationParagraphs.length} Works Cited entries have proper hanging indent`,
+        suggestions: []
+      }];
+    } else if (hasCorrectFormatting) {
+      return [{
+        rule,
+        status: 'failed',
+        details: `Only ${correctlyFormattedCount} of ${citationParagraphs.length} Works Cited entries have hanging indent`,
+        suggestions: [
+          'Apply hanging indent (0.5 inch) to all Works Cited entries',
+          'Select citations and use Format > Paragraph > Indentation: Hanging'
+        ],
+        affectedElements: [`Works Cited entries`]
+      }];
+    } else {
+      return [{
+        rule,
+        status: 'failed',
+        details: `Works Cited entries do not have hanging indent formatting`,
+        suggestions: [
+          'Format all Works Cited entries with 0.5-inch hanging indent',
+          'Select citations and use Format > Paragraph > Indentation: Hanging: 0.5"',
+          'First line should be flush left, subsequent lines indented'
+        ],
+        affectedElements: [`Works Cited entries`]
+      }];
+    }
+  }
+
+  private static checkInTextCitations(paragraphs: DocxParagraph[]): MLACheckResult[] {
+    const rule = this.MLA_RULES.find(r => r.id === 'in-text-citations')!;
+    
+    // Look for common MLA in-text citation patterns
+    // (Author Page), (Author), ("Title"), etc.
+    const citationPatterns = [
+      /\([A-Za-z]+\s+\d+\)/,  // (Smith 123)
+      /\([A-Za-z]+\)/,        // (Smith)
+      /\(".*?"\)/,            // ("Title")
+      /\([A-Za-z]+\s+et\s+al\.\s*\d*\)/  // (Smith et al. 123)
+    ];
+
+    const bodyParagraphs = paragraphs.filter(p => 
+      p.text.trim().length > 0 && 
+      !p.text.toLowerCase().includes('works cited') &&
+      p.alignment !== 'center' // Skip title
+    );
+
+    const paragraphsWithCitations = bodyParagraphs.filter(p =>
+      citationPatterns.some(pattern => pattern.test(p.text))
+    );
+
+    const citationCount = bodyParagraphs.reduce((count, p) => {
+      return count + citationPatterns.reduce((pCount, pattern) => {
+        const matches = p.text.match(new RegExp(pattern.source, 'g'));
+        return pCount + (matches ? matches.length : 0);
+      }, 0);
+    }, 0);
+
+    if (citationCount === 0) {
+      return [{
+        rule,
+        status: 'failed',
+        details: 'No in-text citations found in document',
+        suggestions: [
+          'Add proper MLA in-text citations for all sources used',
+          'Format as (Author Page) or (Author) for sources without page numbers',
+          'Place citations before punctuation marks'
+        ],
+        affectedElements: ['Document body']
+      }];
+    } else if (citationCount < 3) {
+      return [{
+        rule,
+        status: 'failed',
+        details: `Only ${citationCount} in-text citations found - may be insufficient for academic paper`,
+        suggestions: [
+          'Ensure all borrowed ideas, quotes, and paraphrases are cited',
+          'Add more citations to support your arguments',
+          'Check that citation format follows MLA guidelines'
+        ],
+        affectedElements: [`${paragraphsWithCitations.length} paragraphs with citations`]
+      }];
+    } else {
+      return [{
+        rule,
+        status: 'passed',
+        details: `Found ${citationCount} in-text citations in ${paragraphsWithCitations.length} paragraphs`,
+        suggestions: []
       }];
     }
   }
