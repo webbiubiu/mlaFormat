@@ -24,6 +24,34 @@ interface ReportPanelProps {
 }
 
 export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: ReportPanelProps) {
+  const scrollToHighlight = (affectedElement: string) => {
+    // Extract paragraph number from "Paragraph X" format
+    const paragraphMatch = affectedElement.match(/Paragraph (\d+)/);
+    if (paragraphMatch) {
+      const paragraphNum = paragraphMatch[1];
+      const elementId = `mla-p${paragraphNum}`;
+      
+      // Find the element and scroll to it
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Add a temporary highlight effect
+        element.style.transition = 'all 0.3s ease';
+        element.style.transform = 'scale(1.02)';
+        element.style.boxShadow = '0 0 20px rgba(220, 38, 38, 0.3)';
+        
+        setTimeout(() => {
+          element.style.transform = '';
+          element.style.boxShadow = '';
+        }, 1500);
+      }
+    }
+  };
+
   if (!hasFile) {
     return (
       <div className="text-center py-8">
@@ -204,7 +232,21 @@ export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: Re
 
                 {result.affectedElements && result.affectedElements.length > 0 && (
                   <div className="text-xs text-muted-foreground mb-2">
-                    <strong>Affected:</strong> {result.affectedElements.join(', ')}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <strong>Affected:</strong> {result.affectedElements.join(', ')}
+                      </div>
+                      {result.status === 'failed' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => scrollToHighlight(result.affectedElements?.[0] || '')}
+                        >
+                          View in Preview
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
 

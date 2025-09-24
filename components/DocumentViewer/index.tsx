@@ -67,26 +67,142 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
       return content;
     }
 
-    const highlightedContent = content;
+    let highlightedContent = content;
+
+    // Collect all issues with their affected elements
+    const issuesByElement = new Map<string, {severity: string, messages: string[]}>();
+    
+    analysisResult.results.forEach(result => {
+      if (result.status === 'failed' && result.affectedElements) {
+        result.affectedElements.forEach(element => {
+          // Extract paragraph number from "Paragraph X" format
+          const paragraphMatch = element.match(/Paragraph (\d+)/);
+          if (paragraphMatch) {
+            const paragraphNum = paragraphMatch[1];
+            const key = `p${paragraphNum}`;
+            
+            if (!issuesByElement.has(key)) {
+              issuesByElement.set(key, {
+                severity: result.rule.severity,
+                messages: []
+              });
+            }
+            
+            issuesByElement.get(key)!.messages.push(
+              `${result.rule.name}: ${result.details}`
+            );
+          }
+        });
+      }
+    });
+
+    // Add paragraph IDs to HTML content for targeting
+    let paragraphCounter = 1;
+    highlightedContent = highlightedContent.replace(
+      /<p([^>]*)>/g, 
+      (match, attributes) => {
+        const id = `mla-p${paragraphCounter}`;
+        paragraphCounter++;
+        return `<p${attributes} id="${id}">`;
+      }
+    );
+
+    // Apply highlighting to paragraphs with issues
+    issuesByElement.forEach((issue, elementKey) => {
+      const paragraphId = `mla-${elementKey}`;
+      const cssClass = issue.severity === 'error' ? 'mla-error' : 'mla-warning';
+      const tooltip = issue.messages.join('; ');
+      
+      // Add highlighting class and tooltip to the paragraph
+      const regex = new RegExp(`(<p[^>]*id="${paragraphId}"[^>]*>)(.*?)(</p>)`, 'gi');
+      highlightedContent = highlightedContent.replace(
+        regex,
+        `$1<span class="${cssClass}" title="${tooltip}">$2</span>$3`
+      );
+    });
+
+    // Add font and overall document issues highlighting
+    const fontIssues = analysisResult.results.filter(
+      r => (r.rule.id === 'font-family' || r.rule.id === 'font-size') && r.status === 'failed'
+    );
+    
+    if (fontIssues.length > 0) {
+      // Highlight the entire document for font issues
+      const fontMessages = fontIssues.map(r => `${r.rule.name}: ${r.details}`).join('; ');
+      highlightedContent = `<div class="mla-font-issues" title="${fontMessages}">${highlightedContent}</div>`;
+    }
 
     // Add CSS for highlighting
     const styles = `
       <style>
-        .mla-error { background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 2px 4px; }
-        .mla-warning { background-color: #fffbeb; border-left: 4px solid #d97706; padding: 2px 4px; }
-        .mla-success { background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 2px 4px; }
-        .document-preview { 
-          font-family: 'Times New Roman', serif; 
-          font-size: clamp(0.875rem, 2.5vw, 1rem); 
-          line-height: 1.6; 
-          max-width: 8.5in; 
-          margin: 0 auto;
-          padding: 1in;
-          background: white;
-          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        .mla-error { 
+          background-color: #fef2f2 !important; 
+          border-left: 4px solid #dc2626 !important; 
+          padding: 2px 4px !important;
+          margin: 2px 0 !important;
+          border-radius: 2px !important;
+          position: relative !important;
         }
-        .document-preview p { margin: 0 0 0; text-indent: 0.5in; }
-        .document-preview h1, .document-preview .title { text-align: center; text-indent: 0; }
+        .mla-warning { 
+          background-color: #fffbeb !important; 
+          border-left: 4px solid #d97706 !important; 
+          padding: 2px 4px !important;
+          margin: 2px 0 !important;
+          border-radius: 2px !important;
+          position: relative !important;
+        }
+        .mla-font-issues {
+          outline: 2px dashed #dc2626 !important;
+          outline-offset: 4px !important;
+          background-color: rgba(254, 242, 242, 0.3) !important;
+        }
+        .mla-success { 
+          background-color: #f0fdf4 !important; 
+          border-left: 4px solid #16a34a !important; 
+          padding: 2px 4px !important;
+          margin: 2px 0 !important;
+          border-radius: 2px !important;
+        }
+        .document-preview { 
+          font-family: 'Times New Roman', serif !important; 
+          font-size: 12pt !important;
+          line-height: 2.0 !important;
+          max-width: 8.5in !important; 
+          margin: 0 auto !important;
+          padding: 1in !important;
+          background: white !important;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
+          min-height: 11in !important;
+        }
+        .document-preview p { 
+          margin: 0 0 0 !important; 
+          text-indent: 0.5in !important;
+          text-align: left !important;
+        }
+        .document-preview h1, .document-preview .title { 
+          text-align: center !important; 
+          text-indent: 0 !important; 
+          font-weight: normal !important;
+          font-size: 12pt !important;
+        }
+        /* Tooltip styling */
+        .mla-error[title]:hover::after,
+        .mla-warning[title]:hover::after,
+        .mla-font-issues[title]:hover::after {
+          content: attr(title);
+          position: absolute;
+          top: 100%;
+          left: 0;
+          background: rgba(0, 0, 0, 0.9);
+          color: white;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          white-space: nowrap;
+          max-width: 300px;
+          z-index: 1000;
+          margin-top: 4px;
+        }
       </style>
     `;
 
@@ -168,14 +284,29 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
         </Card>
       )}
 
-      {/* Preview Info */}
-      <div className="text-xs text-muted-foreground">
+      {/* Preview Info & Legend */}
+      <div className="text-xs text-muted-foreground space-y-2">
         <p>Preview shows document content converted from DOCX format. Some formatting may differ from the original.</p>
+        
         {analysisResult && (
-          <p className="mt-1">Issues highlighted: 
-            <span className="inline-block w-3 h-3 bg-red-100 border-l-2 border-red-600 mx-1"></span>Errors
-            <span className="inline-block w-3 h-3 bg-yellow-100 border-l-2 border-yellow-600 mx-1"></span>Warnings
-          </p>
+          <div className="space-y-1">
+            <p className="font-medium">Issue Highlighting:</p>
+            <div className="flex flex-wrap gap-4 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-3 bg-red-50 border-l-2 border-red-600 rounded-sm"></div>
+                <span>Formatting Errors</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-3 bg-yellow-50 border-l-2 border-yellow-600 rounded-sm"></div>
+                <span>Warnings</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-3 border-2 border-dashed border-red-600 rounded-sm bg-red-50/30"></div>
+                <span>Font Issues (entire document)</span>
+              </div>
+            </div>
+            <p className="text-xs italic">💡 Hover over highlighted areas to see specific issues</p>
+          </div>
         )}
       </div>
     </div>
