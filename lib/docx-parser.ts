@@ -322,6 +322,56 @@ export class DocxParser {
     }
   }
 
+  // Extract document defaults including default font size from settings and styles
+  static extractDocumentDefaults(settingsXML: XMLNode | null, stylesXML: XMLNode | null): {
+    defaultFontFamily?: string;
+    defaultFontSize?: number;
+    hasExplicitDefaults: boolean;
+  } {
+    let defaultFontFamily: string | undefined;
+    let defaultFontSize: number | undefined;
+    let hasExplicitDefaults = false;
+
+    // Try to get defaults from document settings first
+    if (settingsXML?.settings?.docDefaults) {
+      const docDefaults = settingsXML.settings.docDefaults;
+      if (docDefaults.rPrDefault?.rPr) {
+        const rPr = docDefaults.rPrDefault.rPr;
+        defaultFontFamily = rPr.rFonts?.ascii || rPr.rFonts?.hAnsi;
+        defaultFontSize = this.parseFontSize(rPr.sz?.val);
+        if (defaultFontFamily || defaultFontSize) {
+          hasExplicitDefaults = true;
+        }
+      }
+    }
+
+    // If not found in settings, check Normal style
+    if (!hasExplicitDefaults && stylesXML?.styles?.style) {
+      const styles = Array.isArray(stylesXML.styles.style) 
+        ? stylesXML.styles.style 
+        : [stylesXML.styles.style];
+      
+      const normalStyle = styles.find((s: XMLNode) => 
+        s.styleId === 'Normal' || s.name?.val === 'Normal'
+      );
+      
+      if (normalStyle?.rPr) {
+        const rPr = normalStyle.rPr;
+        defaultFontFamily = defaultFontFamily || rPr.rFonts?.ascii || rPr.rFonts?.hAnsi;
+        defaultFontSize = defaultFontSize || this.parseFontSize(rPr.sz?.val);
+        if (defaultFontFamily || defaultFontSize) {
+          hasExplicitDefaults = true;
+        }
+      }
+    }
+
+    return {
+      defaultFontFamily,
+      defaultFontSize,
+      hasExplicitDefaults
+    };
+  }
+
   // Convert twips to inches (1 inch = 1440 twips)
   static twipsToInches(twips: number): number {
     return twips / 1440;
