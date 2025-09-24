@@ -263,11 +263,22 @@ export class MLARulesEngine {
     const rule = this.MLA_RULES.find(r => r.id === 'line-spacing')!;
     
     let incorrectSpacingCount = 0;
+    let noSpacingInfoCount = 0;
     const affectedElements: string[] = [];
+    let totalParagraphs = 0;
 
     paragraphs.forEach((paragraph, index) => {
       // Skip empty paragraphs
       if (paragraph.text.trim().length === 0) {
+        return;
+      }
+
+      totalParagraphs++;
+
+      // Check if we have spacing information
+      if (!paragraph.spacing) {
+        noSpacingInfoCount++;
+        affectedElements.push(`Paragraph ${index + 1} (no spacing info)`);
         return;
       }
 
@@ -279,15 +290,23 @@ export class MLARulesEngine {
       }
     });
 
-    const passed = incorrectSpacingCount === 0;
+    // If we have no spacing information for most paragraphs, fail the check
+    const hasInsufficientInfo = noSpacingInfoCount > totalParagraphs / 2;
+    const passed = incorrectSpacingCount === 0 && !hasInsufficientInfo;
     
     return [{
       rule,
       passed,
-      details: passed 
-        ? 'Document uses double-spacing throughout'
-        : `Found ${incorrectSpacingCount} paragraphs with incorrect line spacing`,
-      suggestions: passed ? [] : [
+      details: hasInsufficientInfo
+        ? `No line spacing information found in ${noSpacingInfoCount}/${totalParagraphs} paragraphs - unable to verify double-spacing requirement`
+        : passed 
+          ? 'Document uses double-spacing throughout'
+          : `Found ${incorrectSpacingCount} paragraphs with incorrect line spacing`,
+      suggestions: hasInsufficientInfo ? [
+        'Explicitly set double-spacing (2.0) for all paragraphs',
+        'Use Format > Paragraph > Line spacing: Double',
+        'Ensure spacing information is properly embedded in document'
+      ] : passed ? [] : [
         'Set line spacing to "Double" for all paragraphs',
         'Use Format > Paragraph > Line spacing: Double'
       ],
@@ -338,7 +357,9 @@ export class MLARulesEngine {
     const tolerance = 72; // Small tolerance
     
     let incorrectIndentCount = 0;
+    let noIndentInfoCount = 0;
     const affectedElements: string[] = [];
+    let totalBodyParagraphs = 0;
 
     paragraphs.forEach((paragraph, index) => {
       // Skip empty paragraphs and potential titles (centered text)
@@ -346,8 +367,16 @@ export class MLARulesEngine {
         return;
       }
 
-      const hasCorrectIndent = paragraph.indentation?.firstLine && 
-                               Math.abs(paragraph.indentation.firstLine - halfInch) <= tolerance;
+      totalBodyParagraphs++;
+
+      // Check if we have indentation information
+      if (!paragraph.indentation || paragraph.indentation.firstLine === undefined) {
+        noIndentInfoCount++;
+        affectedElements.push(`Paragraph ${index + 1} (no indent info)`);
+        return;
+      }
+
+      const hasCorrectIndent = Math.abs(paragraph.indentation.firstLine - halfInch) <= tolerance;
       
       if (!hasCorrectIndent) {
         incorrectIndentCount++;
@@ -355,15 +384,23 @@ export class MLARulesEngine {
       }
     });
 
-    const passed = incorrectIndentCount === 0;
+    // If we have no indentation information for most paragraphs, fail the check
+    const hasInsufficientInfo = noIndentInfoCount > totalBodyParagraphs / 2;
+    const passed = incorrectIndentCount === 0 && !hasInsufficientInfo;
     
     return [{
       rule,
       passed,
-      details: passed 
-        ? 'All paragraphs have correct 0.5-inch first-line indent'
-        : `Found ${incorrectIndentCount} paragraphs without proper first-line indent`,
-      suggestions: passed ? [] : [
+      details: hasInsufficientInfo
+        ? `No indentation information found in ${noIndentInfoCount}/${totalBodyParagraphs} body paragraphs - unable to verify 0.5" first-line indent requirement`
+        : passed 
+          ? 'All paragraphs have correct 0.5-inch first-line indent'
+          : `Found ${incorrectIndentCount} paragraphs without proper first-line indent`,
+      suggestions: hasInsufficientInfo ? [
+        'Explicitly set first-line indent to 0.5 inches for all body paragraphs',
+        'Use Format > Paragraph > Indentation: First line: 0.5"',
+        'Ensure indentation information is properly embedded in document'
+      ] : passed ? [] : [
         'Set first-line indent to 0.5 inches for all body paragraphs',
         'Use Format > Paragraph > Indentation: First line: 0.5"'
       ],
