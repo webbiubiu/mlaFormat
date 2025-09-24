@@ -11,7 +11,7 @@ export interface DocxParseResult {
   wordXML: XMLNode;
   numbering?: XMLNode | null;
   footnotes?: XMLNode | null;
-  headers?: XMLNode | null;
+  headers?: DocxHeader[] | null | undefined;
   footers?: XMLNode | null;
   relationships?: XMLNode | null;
 }
@@ -78,6 +78,12 @@ export interface DocxPageSettings {
   orientation: string;
 }
 
+export interface DocxHeader {
+  type: 'odd' | 'even' | 'first';
+  content: string;
+  paragraphs: DocxParagraph[];
+}
+
 export class DocxParser {
   private static parseXmlAsync(xmlContent: string): Promise<XMLNode> {
     return new Promise((resolve, reject) => {
@@ -110,16 +116,22 @@ export class DocxParser {
       // Extract footnotes
       const footnotesXml = await zip.file('word/footnotes.xml')?.async('text');
       
+      // Extract headers
+      const header1Xml = await zip.file('word/header1.xml')?.async('text');
+      const header2Xml = await zip.file('word/header2.xml')?.async('text');
+      const header3Xml = await zip.file('word/header3.xml')?.async('text');
+      
       // Extract relationships
       const relsXml = await zip.file('word/_rels/document.xml.rels')?.async('text');
 
       // Parse XML content
-      const [wordXML, styles, settings, numbering, footnotes, relationships] = await Promise.all([
+      const [wordXML, styles, settings, numbering, footnotes, headers, relationships] = await Promise.all([
         this.parseXmlAsync(documentXml),
         stylesXml ? this.parseXmlAsync(stylesXml) : null,
         settingsXml ? this.parseXmlAsync(settingsXml) : null,
         numberingXml ? this.parseXmlAsync(numberingXml) : null,
         footnotesXml ? this.parseXmlAsync(footnotesXml) : null,
+        this.parseHeaders(header1Xml, header2Xml, header3Xml),
         relsXml ? this.parseXmlAsync(relsXml) : null,
       ]);
 
@@ -133,6 +145,7 @@ export class DocxParser {
         wordXML,
         numbering,
         footnotes,
+        headers,
         relationships
       };
     } catch (error) {
@@ -370,6 +383,58 @@ export class DocxParser {
       defaultFontSize,
       hasExplicitDefaults
     };
+  }
+
+  // Parse header files
+  static async parseHeaders(
+    header1Xml: string | null | undefined, 
+    header2Xml: string | null | undefined, 
+    header3Xml: string | null | undefined
+  ): Promise<DocxHeader[] | null> {
+    const headers: DocxHeader[] = [];
+    
+    try {
+      if (header1Xml) {
+        const headerXML = await this.parseXmlAsync(header1Xml);
+        const content = this.extractTextContent(headerXML);
+        const paragraphs = this.extractParagraphs(headerXML);
+        
+        headers.push({
+          type: 'odd',
+          content,
+          paragraphs
+        });
+      }
+      
+      if (header2Xml) {
+        const headerXML = await this.parseXmlAsync(header2Xml);
+        const content = this.extractTextContent(headerXML);
+        const paragraphs = this.extractParagraphs(headerXML);
+        
+        headers.push({
+          type: 'even', 
+          content,
+          paragraphs
+        });
+      }
+      
+      if (header3Xml) {
+        const headerXML = await this.parseXmlAsync(header3Xml);
+        const content = this.extractTextContent(headerXML);
+        const paragraphs = this.extractParagraphs(headerXML);
+        
+        headers.push({
+          type: 'first',
+          content, 
+          paragraphs
+        });
+      }
+      
+      return headers.length > 0 ? headers : null;
+    } catch (error) {
+      console.warn('Error parsing headers:', error);
+      return null;
+    }
   }
 
   // Convert twips to inches (1 inch = 1440 twips)

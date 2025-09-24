@@ -1,4 +1,4 @@
-import { DocxParseResult, DocxParagraph, DocxParser, DocxStyle, DocxPageSettings } from './docx-parser';
+import { DocxParseResult, DocxParagraph, DocxParser, DocxStyle, DocxPageSettings, DocxHeader } from './docx-parser';
 
 export interface MLARule {
   id: string;
@@ -127,6 +127,7 @@ export class MLARulesEngine {
     results.push(...this.checkPageMargins(pageSettings));
     results.push(...this.checkFirstLineIndent(paragraphs));
     results.push(...this.checkParagraphAlignment(paragraphs));
+    results.push(...this.checkHeaderFormat(parseResult.headers));
     results.push(...this.checkTitleFormatting(paragraphs));
     results.push(...this.checkExcessiveFormatting(paragraphs));
     results.push(...this.checkWorksCited(paragraphs));
@@ -444,6 +445,86 @@ export class MLARulesEngine {
       ],
       affectedElements: passed ? [] : affectedElements
     }];
+  }
+
+  private static checkHeaderFormat(headers: DocxHeader[] | null | undefined): MLACheckResult[] {
+    const rule = this.MLA_RULES.find(r => r.id === 'header-format')!;
+    
+    if (!headers || headers.length === 0) {
+      return [{
+        rule,
+        status: 'unable_to_verify',
+        details: 'No header information found in document - unable to verify header format requirement',
+        suggestions: [
+          'Add a header to your document with last name and page number',
+          'Use Insert > Header & Footer to add header',
+          'Format header as: "Last Name [space] [page number]" aligned to the right'
+        ]
+      }];
+    }
+
+    // Check each header
+    let hasCorrectFormat = false;
+    const headerIssues: string[] = [];
+    
+    headers.forEach((header, index) => {
+      const headerContent = header.content.trim();
+      
+      // MLA header should contain last name and page number
+      // Common patterns: "Smith 1", "Johnson 2", etc.
+      // Should be right-aligned
+      const mlaHeaderPattern = /^[A-Za-z]+\s+\d+$/;
+      const hasNameAndNumber = mlaHeaderPattern.test(headerContent);
+      
+      if (hasNameAndNumber) {
+        // Check alignment - look for right alignment in paragraphs
+        const isRightAligned = header.paragraphs.some(p => 
+          p.alignment === 'right' || p.alignment === 'end'
+        );
+        
+        if (isRightAligned) {
+          hasCorrectFormat = true;
+        } else {
+          headerIssues.push(`Header ${index + 1}: Contains name and page number but not right-aligned`);
+        }
+      } else {
+        // Check if it at least contains a page number
+        const hasPageNumber = /\d+/.test(headerContent);
+        const hasText = headerContent.length > 0;
+        
+        if (!hasText) {
+          headerIssues.push(`Header ${index + 1}: Empty header`);
+        } else if (!hasPageNumber) {
+          headerIssues.push(`Header ${index + 1}: Missing page number`);
+        } else {
+          headerIssues.push(`Header ${index + 1}: Should follow format "Last Name [page number]"`);
+        }
+      }
+    });
+
+    if (hasCorrectFormat) {
+      return [{
+        rule,
+        status: 'passed',
+        details: 'Header contains last name and page number, right-aligned',
+        suggestions: []
+      }];
+    } else {
+      return [{
+        rule,
+        status: 'failed',
+        details: headerIssues.length > 0 
+          ? `Header format issues: ${headerIssues.join('; ')}`
+          : 'Header does not follow MLA format requirements',
+        suggestions: [
+          'Format header as "Last Name [space] [page number]"',
+          'Right-align the header text',
+          'Use Insert > Page Number to add automatic page numbering',
+          'Example: "Smith 1" aligned to the right margin'
+        ],
+        affectedElements: ['Document header']
+      }];
+    }
   }
 
   private static checkParagraphAlignment(paragraphs: DocxParagraph[]): MLACheckResult[] {
