@@ -10,7 +10,7 @@ export interface MLARule {
 
 export interface MLACheckResult {
   rule: MLARule;
-  passed: boolean;
+  status: 'passed' | 'failed' | 'unable_to_verify';
   details: string;
   suggestions?: string[];
   affectedElements?: string[];
@@ -21,12 +21,14 @@ export interface MLAAnalysisResult {
   totalRules: number;
   passedRules: number;
   failedRules: number;
+  unverifiableRules: number;
   results: MLACheckResult[];
   summary: {
     critical: number;
     errors: number;
     warnings: number;
     passed: number;
+    unverifiable: number;
   };
 }
 
@@ -131,16 +133,21 @@ export class MLARulesEngine {
 
     // Calculate scores
     const totalRules = results.length;
-    const passedRules = results.filter(r => r.passed).length;
-    const failedRules = totalRules - passedRules;
-    const overallScore = totalRules > 0 ? Math.round((passedRules / totalRules) * 100) : 0;
+    const passedRules = results.filter(r => r.status === 'passed').length;
+    const failedRules = results.filter(r => r.status === 'failed').length;
+    const unverifiableRules = results.filter(r => r.status === 'unable_to_verify').length;
+    
+    // Only calculate score based on rules that could be verified
+    const verifiableRules = passedRules + failedRules;
+    const overallScore = verifiableRules > 0 ? Math.round((passedRules / verifiableRules) * 100) : 0;
 
     // Categorize results
     const summary = {
-      critical: results.filter(r => !r.passed && r.rule.severity === 'error').length,
-      errors: results.filter(r => !r.passed && r.rule.severity === 'error').length,
-      warnings: results.filter(r => !r.passed && r.rule.severity === 'warning').length,
-      passed: passedRules
+      critical: results.filter(r => r.status === 'failed' && r.rule.severity === 'error').length,
+      errors: results.filter(r => r.status === 'failed' && r.rule.severity === 'error').length,
+      warnings: results.filter(r => r.status === 'failed' && r.rule.severity === 'warning').length,
+      passed: passedRules,
+      unverifiable: unverifiableRules
     };
 
     return {
@@ -148,6 +155,7 @@ export class MLARulesEngine {
       totalRules,
       passedRules,
       failedRules,
+      unverifiableRules,
       results,
       summary
     };
@@ -211,50 +219,65 @@ export class MLARulesEngine {
 
     // Font family result
     const hasAnyFontFamilyInfo = explicitFontFamilyCount > 0 || defaultStyle.fontFamily !== undefined;
-    const fontFamilyPassed = nonTimesNewRomanCount === 0 && hasAnyFontFamilyInfo;
     
-    results.push({
-      rule: fontFamilyRule,
-      passed: hasAnyFontFamilyInfo ? fontFamilyPassed : false,
-      details: !hasAnyFontFamilyInfo
-        ? 'No font family information found - unable to verify Times New Roman requirement. Document may be using system defaults.'
-        : fontFamilyPassed 
+    if (!hasAnyFontFamilyInfo) {
+      results.push({
+        rule: fontFamilyRule,
+        status: 'unable_to_verify',
+        details: `No font family information found in ${totalFontChecks} text runs - unable to verify Times New Roman requirement`,
+        suggestions: [
+          'Explicitly set Times New Roman as font family for all text',
+          'Use Format > Font to set Times New Roman as default font',
+          'Ensure font family information is properly saved in the document'
+        ],
+        affectedElements: []
+      });
+    } else {
+      const fontFamilyPassed = nonTimesNewRomanCount === 0;
+      results.push({
+        rule: fontFamilyRule,
+        status: fontFamilyPassed ? 'passed' : 'failed',
+        details: fontFamilyPassed 
           ? `All text uses Times New Roman font family (checked ${explicitFontFamilyCount} explicit + ${defaultStyle.fontFamily ? '1 default' : '0 default'} font definitions)`
           : `Found ${nonTimesNewRomanCount} instances of non-Times New Roman fonts`,
-      suggestions: !hasAnyFontFamilyInfo ? [
-        'Explicitly set Times New Roman as font family',
-        'Ensure document has proper font styling information',
-        'Check document was created with proper formatting tools'
-      ] : fontFamilyPassed ? [] : [
-        'Change all fonts to Times New Roman',
-        'Use Format > Font to set Times New Roman as default'
-      ],
-      affectedElements: fontFamilyPassed ? [] : affectedElements.slice()
-    });
+        suggestions: fontFamilyPassed ? [] : [
+          'Change all fonts to Times New Roman',
+          'Use Format > Font to set Times New Roman as default'
+        ],
+        affectedElements: fontFamilyPassed ? [] : affectedElements.slice()
+      });
+    }
 
-    // Font size result - be more conservative about assumptions
+    // Font size result
     const hasAnyFontSizeInfo = explicitFontSizeCount > 0 || defaultStyle.fontSize !== undefined;
-    const fontSizePassed = wrongFontSizeCount === 0 && hasAnyFontSizeInfo;
     
-    results.push({
-      rule: fontSizeRule,
-      passed: hasAnyFontSizeInfo ? fontSizePassed : false,
-      details: !hasAnyFontSizeInfo
-        ? `No font size information found in ${totalFontChecks} text runs - unable to verify 12pt requirement. Document may be using system defaults which could be any size.`
-        : fontSizePassed 
+    if (!hasAnyFontSizeInfo) {
+      results.push({
+        rule: fontSizeRule,
+        status: 'unable_to_verify',
+        details: `No font size information found in ${totalFontChecks} text runs - unable to verify 12pt requirement`,
+        suggestions: [
+          'Explicitly set 12pt font size for all text',
+          'Use Format > Font to set 12pt as default font size',
+          'Ensure font size information is properly saved in the document'
+        ],
+        affectedElements: []
+      });
+    } else {
+      const fontSizePassed = wrongFontSizeCount === 0;
+      results.push({
+        rule: fontSizeRule,
+        status: fontSizePassed ? 'passed' : 'failed',
+        details: fontSizePassed 
           ? `All text uses 12-point font size (checked ${explicitFontSizeCount} explicit + ${defaultStyle.fontSize ? '1 default' : '0 default'} font size definitions)`
           : `Found ${wrongFontSizeCount} instances of incorrect font sizes (expected 12pt)`,
-      suggestions: !hasAnyFontSizeInfo ? [
-        'Explicitly set 12pt font size for all text',
-        'Use Format > Font to set 12pt as default font size',
-        'Ensure document contains proper font size information',
-        'WARNING: System default font size varies and may not be 12pt'
-      ] : fontSizePassed ? [] : [
-        'Set all text to 12-point font size',
-        'Use Format > Font to set 12pt as default font size'
-      ],
-      affectedElements: fontSizePassed ? [] : affectedElements.slice()
-    });
+        suggestions: fontSizePassed ? [] : [
+          'Set all text to 12-point font size',
+          'Use Format > Font to set 12pt as default font size'
+        ],
+        affectedElements: fontSizePassed ? [] : affectedElements.slice()
+      });
+    }
 
     return results;
   }
@@ -278,7 +301,6 @@ export class MLARulesEngine {
       // Check if we have spacing information
       if (!paragraph.spacing) {
         noSpacingInfoCount++;
-        affectedElements.push(`Paragraph ${index + 1} (no spacing info)`);
         return;
       }
 
@@ -290,23 +312,30 @@ export class MLARulesEngine {
       }
     });
 
-    // If we have no spacing information for most paragraphs, fail the check
-    const hasInsufficientInfo = noSpacingInfoCount > totalParagraphs / 2;
-    const passed = incorrectSpacingCount === 0 && !hasInsufficientInfo;
+    // If we have no spacing information for most paragraphs, unable to verify
+    if (noSpacingInfoCount > totalParagraphs / 2) {
+      return [{
+        rule,
+        status: 'unable_to_verify',
+        details: `No line spacing information found in ${noSpacingInfoCount}/${totalParagraphs} paragraphs - unable to verify double-spacing requirement`,
+        suggestions: [
+          'Explicitly set double-spacing (2.0) for all paragraphs',
+          'Use Format > Paragraph > Line spacing: Double',
+          'Ensure spacing information is properly saved in document'
+        ],
+        affectedElements: []
+      }];
+    }
+
+    const passed = incorrectSpacingCount === 0;
     
     return [{
       rule,
-      passed,
-      details: hasInsufficientInfo
-        ? `No line spacing information found in ${noSpacingInfoCount}/${totalParagraphs} paragraphs - unable to verify double-spacing requirement`
-        : passed 
-          ? 'Document uses double-spacing throughout'
-          : `Found ${incorrectSpacingCount} paragraphs with incorrect line spacing`,
-      suggestions: hasInsufficientInfo ? [
-        'Explicitly set double-spacing (2.0) for all paragraphs',
-        'Use Format > Paragraph > Line spacing: Double',
-        'Ensure spacing information is properly embedded in document'
-      ] : passed ? [] : [
+      status: passed ? 'passed' : 'failed',
+      details: passed 
+        ? `Document uses double-spacing throughout (verified ${totalParagraphs - noSpacingInfoCount}/${totalParagraphs} paragraphs)`
+        : `Found ${incorrectSpacingCount} paragraphs with incorrect line spacing`,
+      suggestions: passed ? [] : [
         'Set line spacing to "Double" for all paragraphs',
         'Use Format > Paragraph > Line spacing: Double'
       ],
@@ -320,9 +349,12 @@ export class MLARulesEngine {
     if (!pageSettings) {
       return [{
         rule,
-        passed: false,
-        details: 'Could not determine page margin settings',
-        suggestions: ['Set all margins to 1 inch in Page Setup']
+        status: 'unable_to_verify',
+        details: 'Could not determine page margin settings from document',
+        suggestions: [
+          'Set all margins to 1 inch in Page Setup',
+          'Ensure margin information is properly saved in document'
+        ]
       }];
     }
 
@@ -338,7 +370,7 @@ export class MLARulesEngine {
 
     return [{
       rule,
-      passed: marginsCorrect,
+      status: marginsCorrect ? 'passed' : 'failed',
       details: marginsCorrect 
         ? 'All page margins are set to 1 inch'
         : `Page margins are not set to 1 inch (Current: T:${DocxParser.twipsToInches(pageSettings.margins.top).toFixed(2)}", B:${DocxParser.twipsToInches(pageSettings.margins.bottom).toFixed(2)}", L:${DocxParser.twipsToInches(pageSettings.margins.left).toFixed(2)}", R:${DocxParser.twipsToInches(pageSettings.margins.right).toFixed(2)}")`,
@@ -372,7 +404,6 @@ export class MLARulesEngine {
       // Check if we have indentation information
       if (!paragraph.indentation || paragraph.indentation.firstLine === undefined) {
         noIndentInfoCount++;
-        affectedElements.push(`Paragraph ${index + 1} (no indent info)`);
         return;
       }
 
@@ -384,23 +415,30 @@ export class MLARulesEngine {
       }
     });
 
-    // If we have no indentation information for most paragraphs, fail the check
-    const hasInsufficientInfo = noIndentInfoCount > totalBodyParagraphs / 2;
-    const passed = incorrectIndentCount === 0 && !hasInsufficientInfo;
+    // If we have no indentation information for most paragraphs, unable to verify
+    if (noIndentInfoCount > totalBodyParagraphs / 2) {
+      return [{
+        rule,
+        status: 'unable_to_verify',
+        details: `No indentation information found in ${noIndentInfoCount}/${totalBodyParagraphs} body paragraphs - unable to verify 0.5" first-line indent requirement`,
+        suggestions: [
+          'Explicitly set first-line indent to 0.5 inches for all body paragraphs',
+          'Use Format > Paragraph > Indentation: First line: 0.5"',
+          'Ensure indentation information is properly saved in document'
+        ],
+        affectedElements: []
+      }];
+    }
+
+    const passed = incorrectIndentCount === 0;
     
     return [{
       rule,
-      passed,
-      details: hasInsufficientInfo
-        ? `No indentation information found in ${noIndentInfoCount}/${totalBodyParagraphs} body paragraphs - unable to verify 0.5" first-line indent requirement`
-        : passed 
-          ? 'All paragraphs have correct 0.5-inch first-line indent'
-          : `Found ${incorrectIndentCount} paragraphs without proper first-line indent`,
-      suggestions: hasInsufficientInfo ? [
-        'Explicitly set first-line indent to 0.5 inches for all body paragraphs',
-        'Use Format > Paragraph > Indentation: First line: 0.5"',
-        'Ensure indentation information is properly embedded in document'
-      ] : passed ? [] : [
+      status: passed ? 'passed' : 'failed',
+      details: passed 
+        ? `All paragraphs have correct 0.5-inch first-line indent (verified ${totalBodyParagraphs - noIndentInfoCount}/${totalBodyParagraphs} paragraphs)`
+        : `Found ${incorrectIndentCount} paragraphs without proper first-line indent`,
+      suggestions: passed ? [] : [
         'Set first-line indent to 0.5 inches for all body paragraphs',
         'Use Format > Paragraph > Indentation: First line: 0.5"'
       ],
@@ -434,7 +472,7 @@ export class MLARulesEngine {
     
     return [{
       rule,
-      passed,
+      status: passed ? 'passed' : 'failed',
       details: passed 
         ? 'All body paragraphs are properly left-aligned'
         : `Found ${incorrectAlignmentCount} paragraphs with incorrect alignment`,
@@ -455,7 +493,7 @@ export class MLARulesEngine {
     if (!title) {
       return [{
         rule,
-        passed: false,
+        status: 'failed',
         details: 'No clear title found in document',
         suggestions: [
           'Add a centered title to your document',
@@ -474,7 +512,7 @@ export class MLARulesEngine {
     
     return [{
       rule,
-      passed,
+      status: passed ? 'passed' : 'failed',
       details: passed 
         ? 'Title is properly centered with no excessive formatting'
         : `Title formatting issues: ${!isCentered ? 'not centered' : ''} ${hasExcessiveFormatting ? 'has excessive formatting' : ''}`.trim(),
@@ -514,7 +552,7 @@ export class MLARulesEngine {
     
     return [{
       rule,
-      passed,
+      status: passed ? 'passed' : 'failed',
       details: passed 
         ? 'Appropriate use of text formatting'
         : `Found ${formattingCount} instances of bold/italic/underline formatting`,
@@ -538,7 +576,7 @@ export class MLARulesEngine {
 
     return [{
       rule,
-      passed: hasWorksCited,
+      status: hasWorksCited ? 'passed' : 'failed',
       details: hasWorksCited 
         ? 'Document includes a Works Cited section'
         : 'No Works Cited section found',

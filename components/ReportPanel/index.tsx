@@ -174,15 +174,23 @@ export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: Re
               <div key={index} className="border rounded-lg p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {result.passed ? (
+                    {result.status === 'passed' ? (
                       <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : result.status === 'unable_to_verify' ? (
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
                     ) : (
                       getSeverityIcon(result.rule.severity)
                     )}
                     <span className="font-medium">{result.rule.name}</span>
                   </div>
-                  <Badge variant={result.passed ? 'outline' : getSeverityBadgeVariant(result.rule.severity)}>
-                    {result.passed ? 'Passed' : result.rule.severity}
+                  <Badge variant={
+                    result.status === 'passed' ? 'outline' : 
+                    result.status === 'unable_to_verify' ? 'secondary' :
+                    getSeverityBadgeVariant(result.rule.severity)
+                  }>
+                    {result.status === 'passed' ? 'Passed' : 
+                     result.status === 'unable_to_verify' ? 'Unable to Verify' :
+                     result.rule.severity}
                   </Badge>
                 </div>
                 
