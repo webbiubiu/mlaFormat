@@ -71,28 +71,37 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
 
     // Collect all issues with their affected elements
     const issuesByElement = new Map<string, {severity: string, messages: string[]}>();
+    const generalIssues: {severity: string, messages: string[]} = {severity: 'error', messages: []};
     
     analysisResult.results.forEach(result => {
-      if (result.status === 'failed' && result.affectedElements) {
-        result.affectedElements.forEach(element => {
-          // Extract paragraph number from "Paragraph X" format
-          const paragraphMatch = element.match(/Paragraph (\d+)/);
-          if (paragraphMatch) {
-            const paragraphNum = paragraphMatch[1];
-            const key = `p${paragraphNum}`;
-            
-            if (!issuesByElement.has(key)) {
-              issuesByElement.set(key, {
-                severity: result.rule.severity,
-                messages: []
-              });
+      if (result.status === 'failed') {
+        if (result.affectedElements && result.affectedElements.length > 0) {
+          result.affectedElements.forEach(element => {
+            // Extract paragraph number from "Paragraph X" format
+            const paragraphMatch = element.match(/Paragraph (\d+)/);
+            if (paragraphMatch) {
+              const paragraphNum = paragraphMatch[1];
+              const key = `p${paragraphNum}`;
+              
+              if (!issuesByElement.has(key)) {
+                issuesByElement.set(key, {
+                  severity: result.rule.severity,
+                  messages: []
+                });
+              }
+              
+              issuesByElement.get(key)!.messages.push(
+                `${result.rule.name}: ${result.details}`
+              );
             }
-            
-            issuesByElement.get(key)!.messages.push(
-              `${result.rule.name}: ${result.details}`
-            );
+          });
+        } else {
+          // For issues without specific paragraph references (like font issues)
+          generalIssues.messages.push(`${result.rule.name}: ${result.details}`);
+          if (result.rule.severity === 'error') {
+            generalIssues.severity = 'error';
           }
-        });
+        }
       }
     });
 
@@ -111,25 +120,21 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
     issuesByElement.forEach((issue, elementKey) => {
       const paragraphId = `mla-${elementKey}`;
       const cssClass = issue.severity === 'error' ? 'mla-error' : 'mla-warning';
-      const tooltip = issue.messages.join('; ');
+      const tooltip = issue.messages.join('; ').replace(/"/g, '&quot;');
       
-      // Add highlighting class and tooltip to the paragraph
-      const regex = new RegExp(`(<p[^>]*id="${paragraphId}"[^>]*>)(.*?)(</p>)`, 'gi');
+      // Add highlighting class and tooltip to the paragraph content
+      const regex = new RegExp(`(<p[^>]*id="${paragraphId}"[^>]*>)(.*?)(</p>)`, 'gis');
       highlightedContent = highlightedContent.replace(
         regex,
         `$1<span class="${cssClass}" title="${tooltip}">$2</span>$3`
       );
     });
 
-    // Add font and overall document issues highlighting
-    const fontIssues = analysisResult.results.filter(
-      r => (r.rule.id === 'font-family' || r.rule.id === 'font-size') && r.status === 'failed'
-    );
-    
-    if (fontIssues.length > 0) {
-      // Highlight the entire document for font issues
-      const fontMessages = fontIssues.map(r => `${r.rule.name}: ${r.details}`).join('; ');
-      highlightedContent = `<div class="mla-font-issues" title="${fontMessages}">${highlightedContent}</div>`;
+    // Add general document issues highlighting (font, margins, etc.)
+    if (generalIssues.messages.length > 0) {
+      const cssClass = generalIssues.severity === 'error' ? 'mla-document-error' : 'mla-document-warning';
+      const tooltip = generalIssues.messages.join('; ').replace(/"/g, '&quot;');
+      highlightedContent = `<div class="${cssClass}" title="${tooltip}">${highlightedContent}</div>`;
     }
 
     // Add CSS for highlighting
@@ -149,6 +154,20 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
           padding: 2px 4px !important;
           margin: 2px 0 !important;
           border-radius: 2px !important;
+          position: relative !important;
+        }
+        .mla-document-error {
+          outline: 2px solid #dc2626 !important;
+          outline-offset: 2px !important;
+          background-color: rgba(254, 242, 242, 0.1) !important;
+          border-radius: 4px !important;
+          position: relative !important;
+        }
+        .mla-document-warning {
+          outline: 2px dashed #d97706 !important;
+          outline-offset: 2px !important;
+          background-color: rgba(255, 251, 235, 0.1) !important;
+          border-radius: 4px !important;
           position: relative !important;
         }
         .mla-font-issues {
@@ -188,6 +207,8 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
         /* Tooltip styling */
         .mla-error[title]:hover::after,
         .mla-warning[title]:hover::after,
+        .mla-document-error[title]:hover::after,
+        .mla-document-warning[title]:hover::after,
         .mla-font-issues[title]:hover::after {
           content: attr(title);
           position: absolute;
@@ -195,13 +216,14 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
           left: 0;
           background: rgba(0, 0, 0, 0.9);
           color: white;
-          padding: 4px 8px;
+          padding: 6px 10px;
           border-radius: 4px;
-          font-size: 11px;
-          white-space: nowrap;
-          max-width: 300px;
+          font-size: 12px;
+          white-space: pre-wrap;
+          max-width: 400px;
           z-index: 1000;
           margin-top: 4px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
       </style>
     `;
@@ -294,15 +316,19 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
             <div className="flex flex-wrap gap-4 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-3 bg-red-50 border-l-2 border-red-600 rounded-sm"></div>
-                <span>Formatting Errors</span>
+                <span>Paragraph Errors</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-3 bg-yellow-50 border-l-2 border-yellow-600 rounded-sm"></div>
-                <span>Warnings</span>
+                <span>Paragraph Warnings</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-3 border-2 border-dashed border-red-600 rounded-sm bg-red-50/30"></div>
-                <span>Font Issues (entire document)</span>
+                <div className="w-4 h-3 border-2 border-solid border-red-600 rounded-sm bg-red-50/10"></div>
+                <span>Document-wide Errors</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-3 border-2 border-dashed border-yellow-600 rounded-sm bg-yellow-50/10"></div>
+                <span>Document-wide Warnings</span>
               </div>
             </div>
             <p className="text-xs italic">💡 Hover over highlighted areas to see specific issues</p>

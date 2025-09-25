@@ -13,7 +13,9 @@ import {
   FileText,
   TrendingUp,
   List,
-  Lightbulb
+  Lightbulb,
+  Eye,
+  ArrowRight
 } from 'lucide-react';
 import { MLAAnalysisResult, MLACheckResult } from '@/lib/mla-rules';
 
@@ -25,31 +27,130 @@ interface ReportPanelProps {
 
 export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: ReportPanelProps) {
   const scrollToHighlight = (affectedElement: string) => {
-    // Extract paragraph number from "Paragraph X" format
-    const paragraphMatch = affectedElement.match(/Paragraph (\d+)/);
-    if (paragraphMatch) {
-      const paragraphNum = paragraphMatch[1];
-      const elementId = `mla-p${paragraphNum}`;
+    console.log('Attempting to scroll to:', affectedElement);
+    
+    // Handle different types of affected elements
+    if (affectedElement.includes('Paragraph')) {
+      // Extract paragraph number from "Paragraph X" format
+      const paragraphMatch = affectedElement.match(/Paragraph (\d+)/);
+      if (paragraphMatch) {
+        const paragraphNum = paragraphMatch[1];
+        const elementId = `mla-p${paragraphNum}`;
+        console.log('Looking for element with ID:', elementId);
+        handleScrollToElement(elementId);
+      }
+    } else if (affectedElement.includes('Document') || affectedElement.includes('header')) {
+      // For document-wide issues, scroll to the document preview
+      console.log('Scrolling to document preview for document-wide issue');
+      handleScrollToDocumentPreview();
+    } else {
+      // Fallback for other cases
+      console.log('Using fallback scroll to document preview');
+      handleScrollToDocumentPreview();
+    }
+  };
+
+  const handleScrollToElement = (elementId: string) => {
+    // First, try to find the element
+    let element = document.getElementById(elementId);
+    
+    // If element not found, it might be because the preview is hidden
+    if (!element) {
+      // Try to show the document preview by looking for the toggle button
+      const previewToggleButton = Array.from(document.querySelectorAll('button')).find(btn => 
+        btn.textContent?.includes('Show Preview') || btn.textContent?.includes('Hide Preview')
+      );
       
-      // Find the element and scroll to it
-      const element = document.getElementById(elementId);
-      if (element) {
-        element.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center' 
-        });
+      if (previewToggleButton && previewToggleButton.textContent?.includes('Show Preview')) {
+        previewToggleButton.click();
         
-        // Add a temporary highlight effect
-        element.style.transition = 'all 0.3s ease';
-        element.style.transform = 'scale(1.02)';
-        element.style.boxShadow = '0 0 20px rgba(220, 38, 38, 0.3)';
-        
+        // Wait a bit for the preview to render, then try again
+        setTimeout(() => {
+          element = document.getElementById(elementId);
+          if (element) {
+            scrollToElement(element);
+          } else {
+            handleScrollToDocumentPreview();
+          }
+        }, 300);
+        return;
+      }
+    }
+    
+    if (element) {
+      scrollToElement(element);
+    } else {
+      handleScrollToDocumentPreview();
+    }
+  };
+
+  const handleScrollToDocumentPreview = () => {
+    // First check if preview is hidden and show it if necessary
+    const previewToggleButton = Array.from(document.querySelectorAll('button')).find(btn => 
+      btn.textContent?.includes('Show Preview') || btn.textContent?.includes('Hide Preview')
+    );
+    
+    if (previewToggleButton && previewToggleButton.textContent?.includes('Show Preview')) {
+      previewToggleButton.click();
+      setTimeout(() => {
+        scrollToDocumentContainer();
+      }, 300);
+    } else {
+      scrollToDocumentContainer();
+    }
+  };
+
+  const scrollToDocumentContainer = () => {
+    // Try multiple selectors to find the document preview
+    const previewContainer = document.querySelector('.document-preview') || 
+                            document.querySelector('[class*="document"]') ||
+                            document.querySelector('[class*="preview"]') ||
+                            document.querySelector('div[dangerouslySetInnerHTML]')?.parentElement;
+    
+    if (previewContainer) {
+      previewContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      
+      // Add a subtle highlight to the entire preview
+      const previewElement = previewContainer as HTMLElement;
+      previewElement.style.transition = 'all 0.3s ease';
+      previewElement.style.outline = '2px solid rgba(59, 130, 246, 0.5)';
+      previewElement.style.outlineOffset = '4px';
+      
+      setTimeout(() => {
+        previewElement.style.outline = '';
+        previewElement.style.outlineOffset = '';
+      }, 2000);
+    }
+  };
+
+  const scrollToElement = (element: HTMLElement) => {
+    // Scroll to the element
+    element.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'center' 
+    });
+    
+    // Add a temporary highlight effect
+    element.style.transition = 'all 0.3s ease';
+    element.style.transform = 'scale(1.02)';
+    element.style.boxShadow = '0 0 20px rgba(220, 38, 38, 0.5)';
+    element.style.zIndex = '1000';
+    
+    // Create a pulsing effect
+    let pulseCount = 0;
+    const pulseInterval = setInterval(() => {
+      element.style.transform = pulseCount % 2 === 0 ? 'scale(1.02)' : 'scale(1.01)';
+      pulseCount++;
+      if (pulseCount >= 4) {
+        clearInterval(pulseInterval);
+        // Reset styles
         setTimeout(() => {
           element.style.transform = '';
           element.style.boxShadow = '';
-        }, 1500);
+          element.style.zIndex = '';
+        }, 500);
       }
-    }
+    }, 300);
   };
 
   if (!hasFile) {
@@ -155,7 +256,7 @@ export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: Re
               {analysisResult.passedRules} / {analysisResult.totalRules} rules passed
             </div>
             <div className="text-sm text-muted-foreground">
-              {analysisResult.totalRules - analysisResult.passedRules} rules need improvement
+              {analysisResult.failedRules} failed, {analysisResult.unverifiableRules} unverifiable
             </div>
           </div>
         </CardContent>
@@ -184,8 +285,17 @@ export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: Re
               <span className="text-sm">Warnings: {analysisResult.summary.warnings}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Info className="h-4 w-4 text-blue-500" />
-              <span className="text-sm">Total: {analysisResult.totalRules}</span>
+              <Info className="h-4 w-4 text-gray-500" />
+              <span className="text-sm">Unverifiable: {analysisResult.summary.unverifiable}</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Total Rules:</span>
+              <span className="font-medium">{analysisResult.totalRules}</span>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {analysisResult.summary.passed + analysisResult.summary.errors + analysisResult.summary.warnings + analysisResult.summary.unverifiable} rules analyzed
             </div>
           </div>
         </CardContent>
@@ -240,12 +350,33 @@ export default function ReportPanel({ analysisResult, hasFile, isAnalyzing }: Re
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-6 px-2 text-xs"
+                          className="h-6 px-2 text-xs flex items-center gap-1 hover:bg-blue-50"
                           onClick={() => scrollToHighlight(result.affectedElements?.[0] || '')}
                         >
+                          <Eye className="h-3 w-3" />
                           View in Preview
                         </Button>
                       )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Show View in Preview for failed items without affected elements (document-wide issues) */}
+                {result.status === 'failed' && (!result.affectedElements || result.affectedElements.length === 0) && (
+                  <div className="text-xs text-muted-foreground mb-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <strong>Scope:</strong> Document-wide issue
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs flex items-center gap-1 hover:bg-blue-50"
+                        onClick={() => scrollToHighlight('Document')}
+                      >
+                        <Eye className="h-3 w-3" />
+                        View in Preview
+                      </Button>
                     </div>
                   </div>
                 )}

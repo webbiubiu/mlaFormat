@@ -179,9 +179,9 @@ export class MLARulesEngine {
     const failedRules = results.filter(r => r.status === 'failed').length;
     const unverifiableRules = results.filter(r => r.status === 'unable_to_verify').length;
     
-    // Only calculate score based on rules that could be verified
-    const verifiableRules = passedRules + failedRules;
-    const overallScore = verifiableRules > 0 ? Math.round((passedRules / verifiableRules) * 100) : 0;
+    // Calculate score based on ALL rules: passed / total
+    // Unverifiable rules count as "not passed" (failed to verify compliance)
+    const overallScore = totalRules > 0 ? Math.round((passedRules / totalRules) * 100) : 0;
 
     // Categorize results
     const summary = {
