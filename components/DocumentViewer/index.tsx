@@ -357,45 +357,18 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
         </Button>
       </div>
 
-      {/* Document Preview with Ad Space */}
+      {/* Document Preview */}
       {showPreview && (
-        <div className="grid grid-cols-12 gap-4">
-          {/* Left Ad Space */}
-          <div className="col-span-2 hidden lg:block">
-            <div className="sticky top-4">
-              <div className="w-full h-96 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">
-                Ad Space
-                <br />
-                (160x600)
-              </div>
-            </div>
+        <Card className="overflow-hidden">
+          <div className="max-h-96 overflow-y-auto">
+            <div 
+              className="prose prose-sm max-w-none p-6"
+              dangerouslySetInnerHTML={{ 
+                __html: highlightIssues(htmlContent) 
+              }}
+            />
           </div>
-
-          {/* Main Document Preview */}
-          <div className="col-span-12 lg:col-span-8">
-            <Card className="overflow-hidden">
-              <div className="max-h-96 overflow-y-auto">
-                <div 
-                  className="prose prose-sm max-w-none p-6"
-                  dangerouslySetInnerHTML={{ 
-                    __html: highlightIssues(htmlContent) 
-                  }}
-                />
-              </div>
-            </Card>
-          </div>
-
-          {/* Right Ad Space */}
-          <div className="col-span-2 hidden lg:block">
-            <div className="sticky top-4">
-              <div className="w-full h-96 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">
-                Ad Space
-                <br />
-                (160x600)
-              </div>
-            </div>
-          </div>
-        </div>
+        </Card>
       )}
 
       {/* Preview Info & Legend */}
