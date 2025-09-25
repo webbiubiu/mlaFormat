@@ -122,11 +122,16 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
       const cssClass = issue.severity === 'error' ? 'mla-error' : 'mla-warning';
       const tooltip = issue.messages.join('; ').replace(/"/g, '&quot;');
       
-      // Add highlighting class and tooltip to the paragraph content
+      // Create inline error message
+      const errorBadgeClass = issue.severity === 'error' ? 'mla-error-badge' : 'mla-warning-badge';
+      const errorIcon = issue.severity === 'error' ? '❌' : '⚠️';
+      const inlineError = `<div class="${errorBadgeClass}">${errorIcon} ${issue.messages.join(' | ')}</div>`;
+      
+      // Add highlighting class, tooltip, and inline error to the paragraph
       const regex = new RegExp(`(<p[^>]*id="${paragraphId}"[^>]*>)(.*?)(</p>)`, 'gis');
       highlightedContent = highlightedContent.replace(
         regex,
-        `$1<span class="${cssClass}" title="${tooltip}">$2</span>$3`
+        `$1<span class="${cssClass}" title="${tooltip}">$2</span>${inlineError}$3`
       );
     });
 
@@ -134,7 +139,13 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
     if (generalIssues.messages.length > 0) {
       const cssClass = generalIssues.severity === 'error' ? 'mla-document-error' : 'mla-document-warning';
       const tooltip = generalIssues.messages.join('; ').replace(/"/g, '&quot;');
-      highlightedContent = `<div class="${cssClass}" title="${tooltip}">${highlightedContent}</div>`;
+      
+      // Create document-level error message
+      const errorBadgeClass = generalIssues.severity === 'error' ? 'mla-document-error-badge' : 'mla-document-warning-badge';
+      const errorIcon = generalIssues.severity === 'error' ? '🚫' : '⚠️';
+      const documentError = `<div class="${errorBadgeClass}">${errorIcon} Document Issues: ${generalIssues.messages.join('; ')}</div>`;
+      
+      highlightedContent = `<div class="${cssClass}" title="${tooltip}">${documentError}${highlightedContent}</div>`;
     }
 
     // Add CSS for highlighting
@@ -155,6 +166,60 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
           margin: 2px 0 !important;
           border-radius: 2px !important;
           position: relative !important;
+        }
+        .mla-error-badge {
+          background-color: #dc2626 !important;
+          color: white !important;
+          padding: 4px 8px !important;
+          margin: 4px 0 !important;
+          border-radius: 4px !important;
+          font-size: 11px !important;
+          line-height: 1.3 !important;
+          display: inline-block !important;
+          max-width: 100% !important;
+          word-wrap: break-word !important;
+          box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2) !important;
+        }
+        .mla-warning-badge {
+          background-color: #d97706 !important;
+          color: white !important;
+          padding: 4px 8px !important;
+          margin: 4px 0 !important;
+          border-radius: 4px !important;
+          font-size: 11px !important;
+          line-height: 1.3 !important;
+          display: inline-block !important;
+          max-width: 100% !important;
+          word-wrap: break-word !important;
+          box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2) !important;
+        }
+        .mla-document-error-badge {
+          background-color: #b91c1c !important;
+          color: white !important;
+          padding: 8px 12px !important;
+          margin: 8px 0 !important;
+          border-radius: 6px !important;
+          font-size: 12px !important;
+          line-height: 1.4 !important;
+          display: block !important;
+          text-align: center !important;
+          font-weight: 500 !important;
+          border: 2px solid #dc2626 !important;
+          box-shadow: 0 4px 8px rgba(185, 28, 28, 0.2) !important;
+        }
+        .mla-document-warning-badge {
+          background-color: #c2410c !important;
+          color: white !important;
+          padding: 8px 12px !important;
+          margin: 8px 0 !important;
+          border-radius: 6px !important;
+          font-size: 12px !important;
+          line-height: 1.4 !important;
+          display: block !important;
+          text-align: center !important;
+          font-weight: 500 !important;
+          border: 2px solid #d97706 !important;
+          box-shadow: 0 4px 8px rgba(194, 65, 12, 0.2) !important;
         }
         .mla-document-error {
           outline: 2px solid #dc2626 !important;
@@ -204,7 +269,7 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
           font-weight: normal !important;
           font-size: 12pt !important;
         }
-        /* Tooltip styling */
+        /* Tooltip styling - keep as fallback */
         .mla-error[title]:hover::after,
         .mla-warning[title]:hover::after,
         .mla-document-error[title]:hover::after,
