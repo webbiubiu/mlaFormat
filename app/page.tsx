@@ -81,20 +81,20 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          {/* Left Ad Space */}
-          <div className="hidden xl:block xl:col-span-2">
+        <div className="flex gap-4">
+          {/* Left Ad Space - Smaller */}
+          <div className="hidden xl:block w-32 flex-shrink-0">
             <div className="sticky top-4">
-              <div className="w-full h-96 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">
+              <div className="w-full h-80 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-xs">
                 Ad Space
                 <br />
-                (160x600)
+                (120x480)
               </div>
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="xl:col-span-8">
+          {/* Main Content Area - Flexible */}
+          <div className="flex-1 min-w-0">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Column */}
               <div className="space-y-6">
@@ -247,13 +247,13 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Ad Space */}
-          <div className="hidden xl:block xl:col-span-2">
+          {/* Right Ad Space - Smaller */}
+          <div className="hidden xl:block w-32 flex-shrink-0">
             <div className="sticky top-4">
-              <div className="w-full h-96 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">
+              <div className="w-full h-80 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-xs">
                 Ad Space
                 <br />
-                (160x600)
+                (120x480)
               </div>
             </div>
           </div>

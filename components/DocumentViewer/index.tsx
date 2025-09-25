@@ -249,14 +249,14 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
         }
         .document-preview { 
           font-family: 'Times New Roman', serif !important; 
-          font-size: 12pt !important;
-          line-height: 2.0 !important;
-          max-width: 8.5in !important; 
+          font-size: 11pt !important;
+          line-height: 1.8 !important;
+          max-width: 100% !important; 
           margin: 0 auto !important;
-          padding: 1in !important;
+          padding: 0.5in !important;
           background: white !important;
           box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
-          min-height: 11in !important;
+          min-height: auto !important;
         }
         .document-preview p { 
           margin: 0 0 0 !important; 
@@ -360,7 +360,7 @@ export default function DocumentViewer({ file, analysisResult }: DocumentViewerP
       {/* Document Preview */}
       {showPreview && (
         <Card className="overflow-hidden">
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[600px] overflow-y-auto">
             <div 
               className="prose prose-sm max-w-none p-6"
               dangerouslySetInnerHTML={{ 
